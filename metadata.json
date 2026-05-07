@@ -1,0 +1,8 @@
+{
+  "name": "Clinical Assistant AI",
+  "description": "A professional AI-powered tool for clinical transcription, summarization, and prescription extraction during consultations.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": []
+}
