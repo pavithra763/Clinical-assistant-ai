@@ -1,4 +1,4 @@
-
+import enum
 from sqlalchemy import (
     Column,
     String,
@@ -156,6 +156,14 @@ class Prescription(Base):
     appointments = relationship("Appointment", back_populates="prescription")
 
 
+class AppointmentStatus(str, enum.Enum):
+    scheduled = "scheduled"
+    confirmed = "confirmed"
+    in_progress = "in_progress"
+    completed = "completed"
+    cancelled = "cancelled"
+    no_show = "no_show"
+    
 # 8. Appointments
 class Appointment(Base):
     __tablename__ = "appointments"
