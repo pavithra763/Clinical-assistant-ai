@@ -50,10 +50,10 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({ isOpen
         return Array.from(s).sort();
     }, [doctors]);
 
-    const filteredDoctors = useMemo(() => {
-        if (specialtyFilter === 'all') return doctors.filter(d => d.isAvailable);
-        return doctors.filter(d => d.isAvailable && d.specialty === specialtyFilter);
-    }, [doctors, specialtyFilter]);
+    // const filteredDoctors = useMemo(() => {
+    //     if (specialtyFilter === 'all') return doctors.filter(d => d.isAvailable);
+    //     return doctors.filter(d => d.isAvailable && d.specialty === specialtyFilter);
+    // }, [doctors, specialtyFilter]);
     const [room, setRoom] = useState('Room 1');
     const [reasonForVisit, setReasonForVisit] = useState('');
     
@@ -64,7 +64,53 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({ isOpen
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [audioTranscript, setAudioTranscript] = useState('');
     const [showTranscriptConfirmation, setShowTranscriptConfirmation] = useState(false);
+const [todayDoctors, setTodayDoctors] = useState<Doctor[]>([]);
 
+useEffect(() => {
+    const fetchTodayDoctors = async () => {
+        try {
+            const today = new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+            });
+
+            const response = await fetch(
+                `${import.meta.env.VITE_API_BASE_URL}/doctor-schedules/?day_of_week=${today}`
+            );
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch today doctors');
+            }
+
+            const data = await response.json();
+
+            // Get unique doctor ids
+            const doctorIds = [...new Set(data.map((s: any) => s.doctor_id))];
+
+            // Match doctors
+            const availableDoctors = doctors.filter(
+                (doc) =>
+                    doctorIds.includes(doc.id) &&
+                    doc.isAvailable
+            );
+
+            setTodayDoctors(availableDoctors);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    fetchTodayDoctors();
+}, [doctors]);
+
+const filteredDoctors = useMemo(() => {
+    if (specialtyFilter === 'all') {
+        return todayDoctors;
+    }
+
+    return todayDoctors.filter(
+        (d) => d.specialty === specialtyFilter
+    );
+}, [todayDoctors, specialtyFilter]);
     useEffect(() => {
         if (isOpen) {
             if (preFilledDoctorId) setDoctorId(preFilledDoctorId);
@@ -123,52 +169,398 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({ isOpen
         setAudioTranscript('');
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        setError(null);
-        if (!patientName.trim() || !patientPhone.trim()) {
-            setError('Patient Name and Phone are required.');
-            return;
-        }
+    // const handleSubmit = async (e: React.FormEvent) => {
+    //     e.preventDefault();
+    //     setError(null);
+    //     if (!patientName.trim() || !patientPhone.trim()) {
+    //         setError('Patient Name and Phone are required.');
+    //         return;
+    //     }
+
+    //     try {
+    //         const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/patients/`, {
+    //             method: "POST",
+    //             headers: {
+    //                 "Content-Type": "application/json",
+    //                 accept: "application/json",
+    //             },
+    //             body: JSON.stringify({
+    //                 name: newDoctorName,
+    //                 specialty: newDoctorSpecialty,
+    //                 phone: newDoctorPhone,
+    //             }),
+    //         });
+
+    //         if (!response.ok) {
+    //             throw new Error("Failed to add doctor");
+    //         }
         
-        const patientRequestInfo = { name: patientName, phone: patientPhone, age: patientAge, gender: patientGender };
-        const { finalPatientInfo, updatedPatientList } = findOrCreatePatient(patientRequestInfo, patients);
+    //     const patientRequestInfo = { name: patientName, phone: patientPhone, age: patientAge, gender: patientGender };
+    //     const { finalPatientInfo, updatedPatientList } = findOrCreatePatient(patientRequestInfo, patients);
 
-        if (updatedPatientList) {
-            onPatientsChange(updatedPatientList);
+    //     if (updatedPatientList) {
+    //         onPatientsChange(updatedPatientList);
+    //     }
+
+    //     let hour12 = parseInt(appointmentHour, 10);
+    //     let hour24 = hour12;
+    //     if (appointmentPeriod === 'PM' && hour12 < 12) hour24 += 12;
+    //     if (appointmentPeriod === 'AM' && hour12 === 12) hour24 = 0;
+        
+    //     const minute = parseInt(appointmentMinute, 10);
+    //     const [year, month, day] = appointmentDate.split('-').map(Number);
+    //     const newDateTime = new Date(year, month - 1, day, hour24, minute);
+
+    //     const conflict = checkAppointmentConflict(doctorId, newDateTime, 15, appointments, schedules);
+    //     if (conflict) {
+    //         setError(conflict);
+    //         return;
+    //     }
+        
+    //     const newAppointment: Appointment = {
+    //         id: `appt-${Date.now()}`,
+    //         patientName: finalPatientInfo.name,
+    //         patientInfo: finalPatientInfo,
+    //         appointmentTime: newDateTime.toISOString(),
+    //         doctorId,
+    //         room,
+    //         reasonForVisit,
+    //         status: 'booked',
+    //         source: 'patient-portal',
+    //     };
+
+    //     onSave(newAppointment);
+    //     resetForm();
+    // };
+    
+// const handleSubmit = async (e: React.FormEvent) => {
+//     e.preventDefault();
+
+//     setError(null);
+//     setSuccessMessage(null);
+
+//     if (!patientName.trim() || !patientPhone.trim()) {
+//         setError("Patient Name and Phone are required.");
+//         return;
+//     }
+
+//     try {
+//         // CREATE PATIENT IN BACKEND
+//         const patientResponse = await fetch(
+//             `${import.meta.env.VITE_API_BASE_URL}/patients`,
+//             {
+//                 method: "POST",
+//                 headers: {
+//                     "Content-Type": "application/json",
+//                     accept: "application/json",
+//                 },
+//                 body: JSON.stringify({
+//                     name: patientName,
+//                     age: patientAge ? Number(patientAge) : null,
+//                     gender: patientGender || null,
+//                     phone: patientPhone,
+//                 }),
+//             }
+//         );
+
+//         if (!patientResponse.ok) {
+//             throw new Error("Failed to create patient");
+//         }
+
+//         const savedPatient = await patientResponse.json();
+
+//         // CONVERT TIME
+//         let hour12 = parseInt(appointmentHour, 10);
+//         let hour24 = hour12;
+
+//         if (appointmentPeriod === "PM" && hour12 < 12) {
+//             hour24 += 12;
+//         }
+
+//         if (appointmentPeriod === "AM" && hour12 === 12) {
+//             hour24 = 0;
+//         }
+
+//         const minute = parseInt(appointmentMinute, 10);
+
+//         const [year, month, day] = appointmentDate
+//             .split("-")
+//             .map(Number);
+
+//         const newDateTime = new Date(
+//             year,
+//             month - 1,
+//             day,
+//             hour24,
+//             minute
+//         );
+
+//         // CHECK APPOINTMENT CONFLICT
+//         const conflict = checkAppointmentConflict(
+//             doctorId,
+//             newDateTime,
+//             15,
+//             appointments,
+//             schedules
+//         );
+
+//         if (conflict) {
+//             setError(conflict);
+//             return;
+//         }
+
+//         // CREATE APPOINTMENT OBJECT
+//         // const newAppointment: Appointment = {
+//         //     id: `appt-${Date.now()}`,
+//         //     patientName: savedPatient.name,
+//         //     patientInfo: {
+//         //         patientId: savedPatient.id,
+//         //         name: savedPatient.name,
+//         //         age: savedPatient.age,
+//         //         gender: savedPatient.gender,
+//         //         phone: savedPatient.phone,
+//         //     },
+//         //     appointmentTime: newDateTime.toISOString(),
+//         //     doctorId,
+//         //     room,
+//         //     reasonForVisit,
+//         //     status: "booked",
+//         //     source: "patient-portal",
+//         // };
+
+//         // onSave(newAppointment);
+
+//         // setSuccessMessage("Appointment created successfully!");
+
+//         resetForm();
+
+//     } catch (error) {
+//         console.error(error);
+//         setError("Failed to create patient or appointment");
+//     }
+// };
+
+const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    setError(null);
+    setSuccessMessage(null);
+
+    // VALIDATION
+    if (!patientName.trim() || !patientPhone.trim()) {
+        setError("Patient Name and Phone are required.");
+        return;
+    }
+
+    try {
+        // =========================
+        // CREATE PATIENT IN BACKEND
+        // =========================
+      let savedPatient = null;
+
+const existingPatientResponse = await fetch(
+    `${import.meta.env.VITE_API_BASE_URL}/patients`
+);
+
+if (!existingPatientResponse.ok) {
+    throw new Error("Failed to fetch patients");
+}
+
+const existingPatients = await existingPatientResponse.json();
+
+// Find patient by phone number
+savedPatient = existingPatients.find(
+    (p: any) =>
+        p.phone === patientPhone &&
+        p.name.toLowerCase().trim() ===
+        patientName.toLowerCase().trim()
+);
+
+// If already exists show error
+if (savedPatient) {
+    setError("Patient with same name and phone number already exists.");
+    return;
+}
+// =========================
+// CREATE PATIENT ONLY IF NOT EXISTS
+// =========================
+
+if (!savedPatient) {
+
+    const patientResponse = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/patients`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                accept: "application/json",
+            },
+            body: JSON.stringify({
+                name: patientName,
+                age: patientAge ? Number(patientAge) : null,
+                gender: patientGender || null,
+                phone: patientPhone,
+            }),
         }
+    );
 
+    if (!patientResponse.ok) {
+        throw new Error("Failed to create patient");
+    }
+
+    savedPatient = await patientResponse.json();
+}
+
+        // =========================
+        // UPDATE LOCAL PATIENT LIST
+        // =========================
+        // const updatedPatients = [
+        //     ...patients,
+        //     {
+        //         patientId: savedPatient.id,
+        //         name: savedPatient.name,
+        //         age: savedPatient.age,
+        //         gender: savedPatient.gender,
+        //         phone: savedPatient.phone,
+        //     },
+        // ];
+
+        // onPatientsChange(updatedPatients);
+
+        // =========================
+        // CONVERT TIME TO 24 HOUR
+        // =========================
         let hour12 = parseInt(appointmentHour, 10);
         let hour24 = hour12;
-        if (appointmentPeriod === 'PM' && hour12 < 12) hour24 += 12;
-        if (appointmentPeriod === 'AM' && hour12 === 12) hour24 = 0;
-        
-        const minute = parseInt(appointmentMinute, 10);
-        const [year, month, day] = appointmentDate.split('-').map(Number);
-        const newDateTime = new Date(year, month - 1, day, hour24, minute);
 
-        const conflict = checkAppointmentConflict(doctorId, newDateTime, 15, appointments, schedules);
+        if (appointmentPeriod === "PM" && hour12 < 12) {
+            hour24 += 12;
+        }
+
+        if (appointmentPeriod === "AM" && hour12 === 12) {
+            hour24 = 0;
+        }
+
+        const minute = parseInt(appointmentMinute, 10);
+
+        const [year, month, day] = appointmentDate
+            .split("-")
+            .map(Number);
+
+        const newDateTime = new Date(
+            year,
+            month - 1,
+            day,
+            hour24,
+            minute
+        );
+
+        // =========================
+        // CHECK CONFLICT
+        // =========================
+        const conflict = checkAppointmentConflict(
+            doctorId,
+            newDateTime,
+            15,
+            appointments,
+            schedules
+        );
+
         if (conflict) {
             setError(conflict);
             return;
         }
-        
+
+        // =========================
+        // CREATE APPOINTMENT OBJECT
+        // =========================
         const newAppointment: Appointment = {
             id: `appt-${Date.now()}`,
-            patientName: finalPatientInfo.name,
-            patientInfo: finalPatientInfo,
+
+            patientName: savedPatient.name,
+
+            patientInfo: {
+                patientId: savedPatient.id,
+                name: savedPatient.name,
+                age: savedPatient.age,
+                gender: savedPatient.gender,
+                phone: savedPatient.phone,
+            },
+
             appointmentTime: newDateTime.toISOString(),
+
             doctorId,
+
             room,
+
             reasonForVisit,
-            status: 'booked',
-            source: 'patient-portal',
+
+            status: "booked",
+
+            source: "patient-portal",
         };
 
-        onSave(newAppointment);
+
+// =========================
+// SAVE APPOINTMENT IN BACKEND
+// =========================
+const appointmentResponse = await fetch(
+    `${import.meta.env.VITE_API_BASE_URL}/appointments`,
+    {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            accept: "application/json",
+        },
+        body: JSON.stringify({
+            patient_id: savedPatient.id,
+            doctor_id: doctorId || null,
+            appointment_time: newDateTime.toISOString(),
+            room: room || null,
+            reason_for_visit: reasonForVisit || null,
+            status: "scheduled",
+            source: "patient-portal",
+        }),
+    }
+);
+
+if (!appointmentResponse.ok) {
+    throw new Error("Failed to create appointment");
+}
+
+const savedAppointment = await appointmentResponse.json();
+
+console.log("Saved Appointment:", savedAppointment);
+
+        // =========================
+        // SAVE TO UI
+        // =========================
+        // onSave(newAppointment);
+
+        // =========================
+        // SUCCESS MESSAGE
+        // =========================
+        // setSuccessMessage("Appointment created successfully!");
+
+        // =========================
+        // RESET FORM
+        // =========================
+        setSuccessMessage("Appointment created successfully!");
         resetForm();
-    };
-    
+        // resetForm();
+
+// Close modal automatically
+onClose();
+
+// Optional page refresh
+window.location.reload();
+
+    } catch (error) {
+        console.error(error);
+        setError("Failed to create patient or appointment");
+    }
+};
+
     const handleConfirmTranscript = async () => {
         setShowTranscriptConfirmation(false);
         setIsProcessing(true);
@@ -422,7 +814,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({ isOpen
                         </div>
                     </div>
                 </div>
-                 <footer className="flex justify-end items-center p-4 bg-slate-50 dark:bg-slate-900/50 border-t dark:border-slate-700 rounded-b-lg flex-shrink-0">
+                <footer className="flex justify-end items-center p-4 bg-slate-50 dark:bg-slate-900/50 border-t dark:border-slate-700 rounded-b-lg flex-shrink-0">
                     <button type="button" onClick={onClose} className="bg-slate-200 text-slate-700 font-bold py-2 px-4 rounded-lg hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-200 dark:hover:bg-slate-500 transition-colors">
                         Cancel
                     </button>
@@ -433,4 +825,5 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({ isOpen
             </form>
         </div>
     );
+
 };

@@ -17,7 +17,6 @@ from app.routes.routes import (
     router_audit,
 )
 
-
 # ─────────────────────────────────────────────
 # Lifespan — runs on startup / shutdown
 # ─────────────────────────────────────────────
@@ -30,7 +29,6 @@ async def lifespan(app: FastAPI):
     yield
     # Add any shutdown cleanup here (close connections, flush caches, etc.)
 
-
 # ─────────────────────────────────────────────
 # App instance
 # ─────────────────────────────────────────────
@@ -41,7 +39,6 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
-
 
 # ─────────────────────────────────────────────
 # CORS
@@ -54,7 +51,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 # ─────────────────────────────────────────────
 # Routers
@@ -70,7 +66,6 @@ app.include_router(router_prescriptions, prefix="/api/v1")
 app.include_router(router_appointments,  prefix="/api/v1")
 app.include_router(router_consultations, prefix="/api/v1")
 app.include_router(router_audit,         prefix="/api/v1")
-
 
 # ─────────────────────────────────────────────
 # Health check

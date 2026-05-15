@@ -220,12 +220,26 @@ def delete_doctor(doctor_id: uuid.UUID, db: Session = Depends(get_db)):
 router_schedules = APIRouter(prefix="/doctor-schedules", tags=["Doctor Schedules"])
 
 
+# @router_schedules.get("/", response_model=list[DoctorScheduleOut])
+# def list_schedules(
+#     doctor_id: Optional[uuid.UUID] = Query(None),
+#     day_of_week: Optional[str] = Query(None),
+#     skip: int = Query(0, ge=0),
+#     limit: int = Query(20, ge=1, le=100),
+#     db: Session = Depends(get_db),
+# ):
+#     q = db.query(DoctorSchedule)
+#     if doctor_id:
+#         q = q.filter(DoctorSchedule.doctor_id == doctor_id)
+#     if day_of_week:
+#         q = q.filter(DoctorSchedule.day_of_week.ilike(day_of_week))
+#     return q.offset(skip).limit(limit).all()
+
+
 @router_schedules.get("/", response_model=list[DoctorScheduleOut])
 def list_schedules(
     doctor_id: Optional[uuid.UUID] = Query(None),
     day_of_week: Optional[str] = Query(None),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     q = db.query(DoctorSchedule)
@@ -233,7 +247,13 @@ def list_schedules(
         q = q.filter(DoctorSchedule.doctor_id == doctor_id)
     if day_of_week:
         q = q.filter(DoctorSchedule.day_of_week.ilike(day_of_week))
-    return q.offset(skip).limit(limit).all()
+    schedules = (
+        q.order_by(
+            DoctorSchedule.day_of_week,
+            DoctorSchedule.start_time
+        ).all()
+    )
+    return schedules
 
 
 @router_schedules.get("/{schedule_id}", response_model=DoctorScheduleOut)
@@ -254,6 +274,26 @@ def create_schedule(payload: DoctorScheduleCreate, db: Session = Depends(get_db)
     db.refresh(schedule)
     return schedule
 
+@router_schedules.delete("/doctor/{doctor_id}")
+def delete_doctor_schedules(
+    doctor_id: uuid.UUID,
+    db: Session = Depends(get_db)
+):
+
+    schedules = (
+        db.query(DoctorSchedule)
+        .filter(DoctorSchedule.doctor_id == doctor_id)
+        .all()
+    )
+
+    for schedule in schedules:
+        db.delete(schedule)
+
+    db.commit()
+
+    return {
+        "message": "Doctor schedules deleted successfully"
+    }
 
 @router_schedules.patch("/{schedule_id}", response_model=DoctorScheduleOut)
 def update_schedule(schedule_id: uuid.UUID, payload: DoctorScheduleUpdate, db: Session = Depends(get_db)):
@@ -266,7 +306,6 @@ def update_schedule(schedule_id: uuid.UUID, payload: DoctorScheduleUpdate, db: S
     db.refresh(schedule)
     return schedule
 
-
 @router_schedules.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_schedule(schedule_id: uuid.UUID, db: Session = Depends(get_db)):
     schedule = db.query(DoctorSchedule).filter(DoctorSchedule.id == schedule_id).first()
@@ -275,6 +314,39 @@ def delete_schedule(schedule_id: uuid.UUID, db: Session = Depends(get_db)):
     db.delete(schedule)
     db.commit()
 
+
+@router_schedules.get("/doctors/available-today")
+async def available_doctors_today():
+
+    conn = await asyncpg.connect(DATABASE_URL)
+
+    today = datetime.now().strftime("%A")
+    # Example -> Monday
+
+    query = """
+    SELECT 
+        d.id,
+        d.name,
+        d.specialty,
+        d.phone,
+        ds.day_of_week,
+        ds.start_time,
+        ds.end_time,
+        ds.room
+    FROM doctors d
+    JOIN doctor_schedules ds
+        ON d.id = ds.doctor_id
+    WHERE 
+        d.is_available = true
+        AND ds.day_of_week = $1
+    ORDER BY ds.start_time
+    """
+
+    rows = await conn.fetch(query, today)
+
+    await conn.close()
+
+    return [dict(row) for row in rows]
 
 # ─────────────────────────────────────────────
 # 5. Patients

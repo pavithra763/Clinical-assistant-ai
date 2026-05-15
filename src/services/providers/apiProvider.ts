@@ -20,11 +20,11 @@ export class ApiProvider implements AIService {
         // It falls back to the direct GeminiProvider for live sessions.
         // In a real app, this would throw an error or connect to a backend WebSocket.
         // For this environment, we must assume process.env.API_KEY is available if we use GeminiProvider.
-        if (!process.env.API_KEY) {
+        if (!import.meta.env.VITE_API_KEY ) {
              console.error("Cannot start live session: API_KEY is not available for fallback GeminiProvider.");
              throw new Error("Live transcription service is not configured correctly. API key is missing.");
         }
-        const geminiProvider = new GeminiProvider({ apiKey: process.env.API_KEY });
+        const geminiProvider = new GeminiProvider({ apiKey: import.meta.env.VITE_API_KEY });
         return geminiProvider.startLiveSession(callbacks, systemInstruction);
     }
 

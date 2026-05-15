@@ -316,7 +316,20 @@ export const App: React.FC = () => {
     const interval = setInterval(checkReminders, 60000);
     return () => clearInterval(interval);
   }, [reminderSettings, doctors, clinicName, isAppLoaded]);
-
+// In App.tsx, add this useEffect after isAppLoaded is true
+useEffect(() => {
+    if (!isAppLoaded) return;
+    fetch(`${import.meta.env.VITE_API_BASE_URL}/doctors`)
+        .then(r => r.json())
+        .then(data => setDoctors(data.map((d: any) => ({
+            id: d.id,
+            name: d.name,
+            specialty: d.specialty,
+            phone: d.phone,
+            isAvailable: d.is_available ?? true,
+        }))))
+        .catch(err => console.error('Failed to load doctors:', err));
+}, [isAppLoaded]);
   useEffect(() => {
     if (!isAppLoaded) return;
     try {
