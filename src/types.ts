@@ -135,7 +135,7 @@ export type Permission =
 export interface Role {
   id: string; // e.g., 'role-doctor'
   name: RoleName;
-  permissions: Set<Permission>;
+  permissions: Record<string, boolean>;
 }
 
 export interface User {

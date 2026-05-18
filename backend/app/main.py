@@ -17,6 +17,8 @@ from app.routes.routes import (
     router_audit,
 )
 
+from app.routes.auth_routes import router_auth
+
 
 # ─────────────────────────────────────────────
 # Lifespan — runs on startup / shutdown
@@ -60,6 +62,7 @@ app.add_middleware(
 # Routers
 # ─────────────────────────────────────────────
 
+app.include_router(router_auth,          prefix="/api/v1")
 app.include_router(router_roles,         prefix="/api/v1")
 app.include_router(router_users,         prefix="/api/v1")
 app.include_router(router_doctors,       prefix="/api/v1")

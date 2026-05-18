@@ -323,20 +323,41 @@ export const ClinicConfigScreen: React.FC<ClinicConfigScreenProps> = ({ doctors,
         }
     };
 
-    const handleRemoveDoctor = (id: string) => {
-        const newDoctors = localDoctors.filter(d => d.id !== id);
-        setLocalDoctors(newDoctors);
+    const handleRemoveDoctor = async (id: string) => {
+        try {
+            const response = await fetch(
+                `${import.meta.env.VITE_API_BASE_URL}/doctors/${id}`,
+                {
+                    method: "DELETE",
+                    headers: {
+                        accept: "*/*",
+                    },
+                }
+            );
 
-        const newSchedules = { ...localSchedules };
-        delete newSchedules[id];
-        setLocalSchedules(newSchedules);
+            if (!response.ok) {
+                throw new Error("Failed to delete doctor");
+            }
 
-        const newUnavailable = { ...unavailableDaysByDoctor };
-        delete newUnavailable[id];
-        setUnavailableDaysByDoctor(newUnavailable);
+            const newDoctors = localDoctors.filter((d) => d.id !== id);
+            setLocalDoctors(newDoctors);
 
-        if (activeScheduleDoctorId === id) {
-            setActiveScheduleDoctorId(newDoctors.length > 0 ? newDoctors[0].id : null);
+            const newSchedules = { ...localSchedules };
+            delete newSchedules[id];
+            setLocalSchedules(newSchedules);
+
+            const newUnavailable = { ...unavailableDaysByDoctor };
+            delete newUnavailable[id];
+            setUnavailableDaysByDoctor(newUnavailable);
+
+            if (activeScheduleDoctorId === id) {
+                setActiveScheduleDoctorId(
+                    newDoctors.length > 0 ? newDoctors[0].id : null
+                );
+            }
+        } catch (error) {
+            console.error(error);
+            setError("Error deleting doctor");
         }
     };
 

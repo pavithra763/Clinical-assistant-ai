@@ -24,6 +24,8 @@ from app.schemas.schemas import (
 )
 from passlib.context import CryptContext
 
+import secrets
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -130,6 +132,27 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     db.refresh(user)
     return user
 
+# @router_users.post("/", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+# def create_user(payload: UserCreate, db: Session = Depends(get_db)):
+
+#     if db.query(User).filter(User.email == payload.email).first():
+#         raise HTTPException(status_code=409, detail="Email already registered")
+
+#     data = payload.model_dump()
+
+#     # Generate default password automatically
+#     generated_password = secrets.token_hex(8)  # example: a1b2c3d4
+
+#     user = User(
+#         **data,
+#         password_hash=pwd_context.hash(generated_password)
+#     )
+
+#     db.add(user)
+#     db.commit()
+#     db.refresh(user)
+
+#     return user
 
 @router_users.patch("/{user_id}", response_model=UserOut)
 def update_user(user_id: uuid.UUID, payload: UserUpdate, db: Session = Depends(get_db)):
@@ -211,6 +234,7 @@ def delete_doctor(doctor_id: uuid.UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Doctor not found")
     db.delete(doctor)
     db.commit()
+    return doctor
 
 
 # ─────────────────────────────────────────────
