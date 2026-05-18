@@ -67,26 +67,122 @@ const StatusBadge: React.FC<{ status: Appointment['status'] }> = ({ status }) =>
   </span>
 );
 
-const DoctorsOnDuty: React.FC<{ doctors: Doctor[], schedules: { [doctorId: string]: DoctorSchedule } }> = ({ doctors, schedules }) => {
-    const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
 
-    const onDuty = doctors.filter(doctor => {
-        const doctorSchedule = schedules[doctor.id];
-        return doctor.isAvailable && doctorSchedule && doctorSchedule[today] && doctorSchedule[today].length > 0;
-    });
+// const DoctorsOnDuty: React.FC<{ doctors: Doctor[], schedules: { [doctorId: string]: DoctorSchedule } }> = ({ doctors, schedules }) => {
+//     const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+
+//     const onDuty = doctors.filter(doctor => {
+//         const doctorSchedule = schedules[doctor.id];
+//         return doctor.isAvailable && doctorSchedule && doctorSchedule[today] && doctorSchedule[today].length > 0;
+//     });
+
+//     return (
+//         <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950 shadow-sm">
+//             <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+//                 Doctors on Duty Today ({today})
+//             </h4>
+//             {onDuty.length > 0 ? (
+//                 <div className="mt-3 flex flex-wrap gap-2">
+//                     {onDuty.map(doc => (
+//                         <div key={doc.id} className="flex items-center gap-2 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 shadow-sm dark:bg-blue-900/20 dark:text-blue-300">
+//                             <span className="font-bold">{doc.name}</span>
+//                             <span className="text-blue-300 dark:text-blue-700">|</span>
+//                             <span>{doc.specialty}</span>
+//                         </div>
+//                     ))}
+//                 </div>
+//             ) : (
+//                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 italic">
+//                     No doctors are scheduled to be on duty today.
+//                 </p>
+//             )}
+//         </div>
+//     );
+// };
+
+
+const DoctorsOnDuty: React.FC<{ 
+    doctors: Doctor[], 
+    schedules: { [doctorId: string]: DoctorSchedule } 
+}> = ({ doctors, schedules }) => {
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    
+const [doctorSlots, setDoctorSlots] = useState<
+    { doctor: Doctor; slots: { start: string; end: string; room: string }[] }[]
+>([]);
+
+    useEffect(() => {
+        const fetchSlots = async () => {
+            try {
+                const res = await fetch(
+                    `${import.meta.env.VITE_API_BASE_URL}/doctor-schedules/?day_of_week=${today}`
+                );
+                if (!res.ok) return;
+                const data = await res.json();
+                // data is an array of { doctor_id, start_time, end_time, room, ... }
+
+                // Group slots by doctor_id
+                const grouped: Record<string, typeof data> = {};
+                for (const slot of data) {
+                    if (!grouped[slot.doctor_id]) grouped[slot.doctor_id] = [];
+                    grouped[slot.doctor_id].push(slot);
+                }
+
+                // Match with doctor details
+                const result = Object.entries(grouped).map(([doctorId, slots]) => ({
+                    doctor: doctors.find(d => d.id === doctorId)!,
+                    slots: slots.map(s => ({
+                        start: s.start_time.slice(0, 5),   // "09:00"
+                        end:   s.end_time.slice(0, 5),     // "10:00"
+                        room:  s.room,
+                    })),
+                })).filter(item => item.doctor); // drop unmatched
+                
+                setDoctorSlots(result);
+            } catch (err) {
+                console.error('Failed to fetch doctor schedules', err);
+            }
+        };
+
+        fetchSlots();
+    }, [today, doctors]);
 
     return (
         <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950 shadow-sm">
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                 Doctors on Duty Today ({today})
             </h4>
-            {onDuty.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                    {onDuty.map(doc => (
-                        <div key={doc.id} className="flex items-center gap-2 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 shadow-sm dark:bg-blue-900/20 dark:text-blue-300">
-                            <span className="font-bold">{doc.name}</span>
-                            <span className="text-blue-300 dark:text-blue-700">|</span>
-                            <span>{doc.specialty}</span>
+
+            {doctorSlots.length > 0 ? (
+                <div className="mt-3 flex flex-col gap-3">
+                    {doctorSlots.map(({ doctor, slots }) => (
+                        <div key={doctor.id} className="rounded-lg border border-blue-100 bg-blue-50 p-3 dark:border-blue-900/30 dark:bg-blue-900/10">
+                            {/* Doctor header */}
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                                    {doctor.name}
+                                </span>
+                                <span className="text-blue-300">|</span>
+                                <span className="text-xs text-blue-600 dark:text-blue-400">
+                                    {doctor.specialty}
+                                </span>
+                            </div>
+
+                            {/* Time slots */}
+                            <div className="flex flex-wrap gap-1.5">
+                                {slots.map((slot, i) => (
+                                    <span
+                                        key={i}
+                                        className="inline-flex items-center gap-1 rounded-md bg-white border border-blue-200 px-2 py-0.5 text-xs text-blue-700 dark:bg-slate-900 dark:border-blue-800 dark:text-blue-300"
+                                    >
+                                        <Clock size={11} />
+                                        {slot.start}–{slot.end}
+                                        <span className="text-blue-300 dark:text-blue-700 ml-1">
+                                            {slot.room}
+                                        </span>
+                                    </span>
+                                ))}
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -163,7 +259,7 @@ export const AppointmentsDashboard: React.FC<AppointmentsDashboardProps> = ({ ap
   const [localError, setLocalError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const ITEMS_PER_PAGE = 10;
-
+  const [formattedPatients, setFormattedPatients] = useState<any[]>([]);
   const currentUserRole = useMemo(() => roles.find(r => r.id === currentUser?.roleId), [currentUser, roles]);
 
   useEffect(() => {
@@ -174,6 +270,40 @@ export const AppointmentsDashboard: React.FC<AppointmentsDashboardProps> = ({ ap
       }
     }
   }, [currentUser?.id, currentUserRole?.id, doctors, onActiveDoctorChange, activeDoctorId]);
+
+useEffect(() => {
+  const fetchPatients = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/patients/`);
+
+      if (!response.ok) {
+        console.log("fetcheddata",response.json())
+        throw new Error("Failed to fetch patients");
+      }
+
+      const data = await response.json();
+           console.log(data,"fetched data")
+      const formattedPatients = data.map((patient: any) => ({
+        patientId: patient.id,
+        name: patient.name,
+        age: patient.age,
+        gender: patient.gender,
+        phone: patient.phone,
+        email: patient.email,
+        address: patient.address,
+      }));
+
+      console.log(formattedPatients);
+setFormattedPatients(formattedPatients)
+    //   onPatientsChange(formattedPatients);
+
+    } catch (error) {
+    //   console.error("Error fetching patients:", error);
+    }
+  };
+
+  fetchPatients();
+}, []);
 
   const filteredAppointments = useMemo(() => {
     const todayStart = new Date();
@@ -628,7 +758,7 @@ export const AppointmentsDashboard: React.FC<AppointmentsDashboardProps> = ({ ap
                     animate={{ opacity: 1 }}
                     className="grid gap-3"
                 >
-                    {paginatedAppointments.length > 0 && selectedIds.size > 0 && (
+                    {/* {paginatedAppointments.length > 0 && selectedIds.size > 0 && (
                         <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-900 p-3 rounded-xl flex items-center justify-between mb-4 animate-in fade-in slide-in-from-top-2">
                              <div className="flex items-center gap-3">
                                 <span className="text-sm font-bold text-blue-700 dark:text-blue-400">{selectedIds.size} selected</span>
@@ -653,8 +783,8 @@ export const AppointmentsDashboard: React.FC<AppointmentsDashboardProps> = ({ ap
                                 )}
                              </div>
                         </div>
-                    )}
-                    {paginatedAppointments.length > 0 && (
+                    )} */}
+                    {/* {paginatedAppointments.length > 0 && (
                         <div className="flex items-center gap-2 mb-2 px-2">
                             <input 
                                 type="checkbox" 
@@ -664,10 +794,14 @@ export const AppointmentsDashboard: React.FC<AppointmentsDashboardProps> = ({ ap
                             />
                             <span className="text-xs text-slate-500">Select All on Page</span>
                         </div>
-                    )}
-                    {paginatedAppointments.length > 0 ? paginatedAppointments.map((app, idx) => (
+                    )} */}
+                    {/* <div>{paginatedAppointments}</div>
+                     */}
+
+{/*                      
+                    {formattedPatients.length > 0 ? formattedPatients.map((app, idx) => (
                         <motion.div
-                            key={app.id}
+                            key={app.patientId}
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: idx * 0.05 }}
@@ -691,7 +825,7 @@ export const AppointmentsDashboard: React.FC<AppointmentsDashboardProps> = ({ ap
                                         {app.patientName}
                                     </h4>
                                     <div className="flex gap-2">
-                                        <StatusBadge status={app.status}/>
+                                        <StatusBadge status={app.status}/>x x
                                         {app.source === 'whatsapp' && (
                                             <div className="flex items-center gap-1.5 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-bold uppercase text-green-600 dark:bg-green-900/20 dark:text-green-400">
                                                 <MessageCircle size={10} />
@@ -739,7 +873,57 @@ export const AppointmentsDashboard: React.FC<AppointmentsDashboardProps> = ({ ap
                                 </div>
                             </div>
                         </motion.div>
-                    )) : (
+                    ))  */}
+                    
+                    {formattedPatients.length > 0 ? (
+  formattedPatients.map((patient, idx) => (
+    <motion.div
+      key={patient.patientId}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: idx * 0.05 }}
+      className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-blue-300 hover:shadow-lg dark:border-slate-800 dark:bg-slate-950"
+    >
+      {/* Profile Icon */}
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+        <UserIcon size={28} />
+      </div>
+
+      {/* Patient Details */}
+      <div className="flex-1 space-y-2">
+        
+        {/* Name */}
+        <div className="flex items-center gap-2">
+          <Users size={16} className="text-slate-400" />
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+            {patient.name}
+          </h3>
+        </div>
+
+        {/* Age */}
+        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+          <Calendar size={15} className="text-slate-400" />
+          <span>Age: {patient.age}</span>
+        </div>
+
+        {/* Gender */}
+        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+          <UserIcon size={15} className="text-slate-400" />
+          <span>Gender: {patient.gender}</span>
+        </div>
+
+        {/* Phone */}
+        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+          <MessageCircle size={15} className="text-slate-400" />
+          <span>{patient.phone}</span>
+        </div>
+
+      </div>
+    </motion.div>
+  ))
+) 
+                    
+                    : (
                         <div className="flex flex-col items-center justify-center py-20">
                             <div className="rounded-full bg-slate-50 p-6 dark:bg-slate-900">
                                 <Calendar size={48} className="text-slate-200 dark:text-slate-800" />

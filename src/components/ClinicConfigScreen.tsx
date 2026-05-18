@@ -29,32 +29,66 @@ const timeToMinutes = (time: string): number => {
  * @returns An array of indices corresponding to the overlapping slots.
  */
 const checkForOverlaps = (slots: TimeSlot[]): number[] => {
-    if (slots.length < 2) return [];
-
-    const sortedSlots = slots
-        .map((slot, index) => ({ ...slot, originalIndex: index }))
-        .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+    if (slots.length < 1) return [];
 
     const overlappingIndices = new Set<number>();
 
+    // Convert with original index
+    const normalizedSlots = slots.map((slot, index) => ({
+        ...slot,
+        originalIndex: index,
+        start: timeToMinutes(slot.startTime),
+        end: timeToMinutes(slot.endTime),
+    }));
+
+    // 1. Validate invalid ranges
+    normalizedSlots.forEach(slot => {
+        if (slot.end <= slot.start) {
+            overlappingIndices.add(slot.originalIndex);
+        }
+    });
+
+    // 2. Sort by start time
+    const sortedSlots = [...normalizedSlots].sort(
+        (a, b) => a.start - b.start
+    );
+
+    // 3. Check overlaps
     for (let i = 0; i < sortedSlots.length; i++) {
         for (let j = i + 1; j < sortedSlots.length; j++) {
             const slot1 = sortedSlots[i];
             const slot2 = sortedSlots[j];
 
-            // If slot2 starts before slot1 has ended, it's an overlap.
-            // Because slots are sorted by start time, if slot2 starts after slot1 ends,
-            // no subsequent slots can possibly overlap with slot1, so we can break early.
-            if (timeToMinutes(slot1.endTime) > timeToMinutes(slot2.startTime)) {
+            // overlap
+            if (slot2.start < slot1.end) {
                 overlappingIndices.add(slot1.originalIndex);
                 overlappingIndices.add(slot2.originalIndex);
             } else {
-                break; // Optimization for sorted array
+                break;
             }
         }
     }
 
     return Array.from(overlappingIndices);
+};
+
+const hasDuplicateSlots = (slots: TimeSlot[]): boolean => {
+
+    const seen = new Set<string>();
+
+    for (const slot of slots) {
+
+        const key =
+            `${slot.startTime}-${slot.endTime}`;
+
+        if (seen.has(key)) {
+            return true;
+        }
+
+        seen.add(key);
+    }
+
+    return false;
 };
 
 // --- WIZARD UI COMPONENTS ---
@@ -134,9 +168,28 @@ const TimeSlotEditor: React.FC<{
             </div>
             <div>
                 <label className="text-xs font-medium text-slate-500 dark:text-slate-400">End Time</label>
-                <select value={slot.endTime} onChange={e => onSlotChange({ ...slot, endTime: e.target.value })} className={`${inputClasses} ${overlapClasses}`}>
+                {/* <select value={slot.endTime} onChange={e => onSlotChange({ ...slot, endTime: e.target.value })} className={`${inputClasses} ${overlapClasses}`}>
                     {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                </select> */}
+
+                <select
+    value={slot.endTime}
+    onChange={e =>
+        onSlotChange({
+            ...slot,
+            endTime: e.target.value
+        })
+    }
+    className={`${inputClasses} ${overlapClasses}`}
+>
+    {timeOptions
+        .filter(t => timeToMinutes(t) > timeToMinutes(slot.startTime))
+        .map(t => (
+            <option key={t} value={t}>
+                {t}
+            </option>
+        ))}
+</select>
             </div>
             <div>
                 <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Room</label>
@@ -194,6 +247,7 @@ export const ClinicConfigScreen: React.FC<ClinicConfigScreenProps> = ({ doctors,
 
     useEffect(() => {
         fetchDoctors();
+        fetchSchedules();
     }, []);
 
 
@@ -229,7 +283,64 @@ export const ClinicConfigScreen: React.FC<ClinicConfigScreenProps> = ({ doctors,
             setError("Error fetching doctors");
         }
     };
+    const fetchSchedules = async () => {
+    try {
 
+        const response = await fetch(
+            `${import.meta.env.VITE_API_BASE_URL}/doctor-schedules/`,
+            {
+                method: "GET",
+                headers: {
+                    accept: "application/json",
+                },
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error("Failed to fetch schedules");
+        }
+
+        const data = await response.json();
+
+        const formattedSchedules: {
+            [doctorId: string]: DoctorSchedule;
+        } = {};
+
+        data.forEach((schedule: any) => {
+
+            const doctorId = schedule.doctor_id;
+
+            // Initialize doctor schedule
+            if (!formattedSchedules[doctorId]) {
+
+                formattedSchedules[doctorId] = {
+                    Monday: [],
+                    Tuesday: [],
+                    Wednesday: [],
+                    Thursday: [],
+                    Friday: [],
+                    Saturday: [],
+                    Sunday: [],
+                };
+            }
+
+            // Push slot
+            formattedSchedules[doctorId][schedule.day_of_week].push({
+                startTime: schedule.start_time.slice(0, 5),
+                endTime: schedule.end_time.slice(0, 5),
+                room: schedule.room || "Room 1",
+                maxPatients: schedule.max_patients,
+                type: schedule.slot_type || "available",
+            });
+        });
+
+        setLocalSchedules(formattedSchedules);
+
+    } catch (error) {
+        console.error(error);
+        setError("Error fetching schedules");
+    }
+};
     // useEffect(() => {
     //     setLocalDoctors(JSON.parse(JSON.stringify(doctors)));
     //     setLocalSchedules(JSON.parse(JSON.stringify(schedules)));
@@ -386,17 +497,25 @@ export const ClinicConfigScreen: React.FC<ClinicConfigScreenProps> = ({ doctors,
         });
     };
 
-    const handleDaySlotsChange = (day: string, slots: TimeSlot[]) => {
-        if (!activeScheduleDoctorId) return;
-        setLocalSchedules(prev => ({
-            ...prev,
-            [activeScheduleDoctorId]: {
-                ...(prev[activeScheduleDoctorId] || {}),
-                [day]: slots
-            }
-        }));
-    };
+   const handleDaySlotsChange = (
+    day: string,
+    slots: TimeSlot[]
+) => {
 
+    if (!activeScheduleDoctorId) return;
+
+    setLocalSchedules(prev => ({
+        ...prev,
+        [activeScheduleDoctorId]: {
+            ...(prev[activeScheduleDoctorId] || {}),
+            [day]: [...slots].sort(
+                (a, b) =>
+                    timeToMinutes(a.startTime) -
+                    timeToMinutes(b.startTime)
+            )
+        }
+    }));
+};
     const handleAddSlot = (day: string) => {
         if (!activeScheduleDoctorId) return;
         const currentSlots = localSchedules[activeScheduleDoctorId]?.[day] || [];
@@ -429,30 +548,203 @@ export const ClinicConfigScreen: React.FC<ClinicConfigScreenProps> = ({ doctors,
         setUnavailableDaysByDoctor(prev => ({ ...prev, [activeScheduleDoctorId]: newUnavailable }));
     };
 
-    const handleFinish = () => {
-        setError(null);
-        if (hasAnyOverlaps) {
-            setError("Please resolve the overlapping time slots (highlighted in red) before saving.");
-            return;
-        }
-        // Final cleanup: ensure unavailable days have empty slots array
-        const finalSchedules = JSON.parse(JSON.stringify(localSchedules));
-        Object.entries(unavailableDaysByDoctor).forEach(([doctorId, unavailableDays]) => {
-            // Fix: Cast unavailableDays to Set<string> to resolve TypeScript type inference issue with Object.entries.
-            (unavailableDays as Set<string>).forEach(day => {
-                if (finalSchedules[doctorId]) {
-                    finalSchedules[doctorId][day] = [];
-                }
-            });
-        });
+    // const handleFinish = () => {
+    //     setError(null)
+    //     if (hasAnyOverlaps) {
+    //         setError("Please resolve the overlapping time slots (highlighted in red) before saving.");
+    //         return;
+    //     }
+    //     // Final cleanup: ensure unavailable days have empty slots array
+    //     const finalSchedules = JSON.parse(JSON.stringify(localSchedules));
+    //     Object.entries(unavailableDaysByDoctor).forEach(([doctorId, unavailableDays]) => {
+    //         // Fix: Cast unavailableDays to Set<string> to resolve TypeScript type inference issue with Object.entries.
+    //         (unavailableDays as Set<string>).forEach(day => {
+    //             if (finalSchedules[doctorId]) {
+    //                 finalSchedules[doctorId][day] = [];
+    //             }
+    //         });
+    //     });
 
-        onSave(localDoctors, finalSchedules);
-        setSuccessMessage("Configuration saved successfully!");
+    //     onSave(localDoctors, finalSchedules);
+    //     setSuccessMessage("Configuration saved successfully!");
+    //     setTimeout(() => {
+    //         setSuccessMessage(null);
+    //         onBack();
+    //     }, 2000);
+    // };
+
+const handleFinish = async () => {
+
+    setError(null);
+
+    // CHECK OVERLAPS
+    if (hasAnyOverlaps) {
+
+        setError(
+            "Please resolve overlapping slots before saving."
+        );
+
+        return;
+    }
+
+    // CHECK DUPLICATE SLOTS
+    for (const doctor of localDoctors) {
+
+        const doctorSchedule =
+            localSchedules[doctor.id];
+
+        if (!doctorSchedule) continue;
+
+        for (const day of daysOfWeek) {
+
+            const slots =
+                doctorSchedule[day] || [];
+
+            const seen = new Set<string>();
+
+            for (const slot of slots) {
+
+                const key =
+                    `${day}-${slot.startTime}-${slot.endTime}`;
+
+                // DUPLICATE FOUND
+                if (seen.has(key)) {
+
+                    setError(
+                        `Duplicate slot found for ${doctor.name} on ${day}`
+                    );
+
+                    return;
+                }
+
+                seen.add(key);
+
+                // INVALID TIME CHECK
+                if (
+                    timeToMinutes(slot.endTime) <=
+                    timeToMinutes(slot.startTime)
+                ) {
+
+                    setError(
+                        `Invalid time slot for ${doctor.name} on ${day}`
+                    );
+
+                    return;
+                }
+            }
+        }
+    }
+
+    try {
+
+        // DELETE OLD SCHEDULES
+        for (const doctor of localDoctors) {
+
+            const deleteResponse = await fetch(
+                `${import.meta.env.VITE_API_BASE_URL}/doctor-schedules/doctor/${doctor.id}`,
+                {
+                    method: "DELETE",
+                }
+            );
+
+            if (!deleteResponse.ok) {
+
+                throw new Error(
+                    `Failed to delete old schedules for ${doctor.name}`
+                );
+            }
+        }
+
+        // INSERT NEW SCHEDULES
+        for (const doctor of localDoctors) {
+
+            const doctorSchedule =
+                localSchedules[doctor.id];
+
+            if (!doctorSchedule) continue;
+
+            // LOOP DAYS
+            for (const day of daysOfWeek) {
+
+                const slots =
+                    doctorSchedule[day] || [];
+
+                // LOOP SLOTS
+                for (const slot of slots) {
+
+                    const payload = {
+
+                        doctor_id: doctor.id,
+
+                        day_of_week: day,
+
+                        start_time: slot.startTime,
+
+                        end_time: slot.endTime,
+
+                        max_patients: slot.maxPatients,
+
+                        room: slot.room,
+
+                        slot_type:
+                            slot.type || "available",
+                    };
+
+                    const response = await fetch(
+                        `${import.meta.env.VITE_API_BASE_URL}/doctor-schedules/`,
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "Content-Type": "application/json",
+                                accept: "application/json",
+                            },
+
+                            body: JSON.stringify(payload),
+                        }
+                    );
+
+                    if (!response.ok) {
+
+                        const errorData =
+                            await response.json();
+
+                        console.error(errorData);
+
+                        throw new Error(
+                            `Failed to save slot for ${doctor.name}`
+                        );
+                    }
+                }
+            }
+        }
+
+        // REFRESH DATA
+        await fetchSchedules();
+
+        setSuccessMessage(
+            "Schedules saved successfully!"
+        );
+
         setTimeout(() => {
+
             setSuccessMessage(null);
+
             onBack();
+
         }, 2000);
-    };
+
+    } catch (error) {
+
+        console.error(error);
+
+        setError(
+            error instanceof Error
+                ? error.message
+                : "Error saving schedules"
+        );
+    }
+};
 
     const renderWelcomeStep = () => (
         <div className="text-center p-8">

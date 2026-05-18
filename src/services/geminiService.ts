@@ -21,7 +21,7 @@ export function getAiService(settings: AIProviderSettings): AIService {
         case 'gemini':
             // The API key is expected to be available in the environment.
             // In a Vite environment, process.env might not be defined globally.
-            const apiKey = typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined;
+            const apiKey = import.meta.env.VITE_API_KEY 
             if (!apiKey) {
                 throw new Error("Gemini API key is not configured. Please ensure GEMINI_API_KEY is set in your environment or settings.");
             }

@@ -8,8 +8,22 @@ from app.schemas.patient import PatientCreate, PatientResponse
 
 router = APIRouter(prefix="/patients", tags=["Patients"])
 
+@router_patients.get("/", response_model=List[PatientOut])
+def list_patients(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    name: Optional[str] = Query(None),
+    phone: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    q = db.query(Patient)
+    if name:
+        q = q.filter(Patient.name.ilike(f"%{name}%"))
+    if phone:
+        q = q.filter(Patient.phone == phone)
+    return q.offset(skip).limit(limit).all()
 
-@router.post("", response_model=PatientResponse)
+@router.post("/", response_model=PatientResponse)
 def create_patient(
     patient: PatientCreate,
     db: Session = Depends(get_db)
@@ -22,11 +36,9 @@ def create_patient(
 
     return db_patient
 
-
-@router.get("", response_model=List[PatientResponse])
+@router.get("/getpatient", response_model=List[PatientResponse])
 def get_patients(db: Session = Depends(get_db)):
     return db.query(Patient).all()
-
 
 @router.get("/{patient_id}", response_model=PatientResponse)
 def get_patient(patient_id: str, db: Session = Depends(get_db)):

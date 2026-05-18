@@ -126,6 +126,52 @@ export const findAvailableSlot = (
  * @param schedules - Doctor schedules.
  * @returns An error message if a conflict is found, otherwise null.
  */
+
+// export const checkAppointmentConflict = (
+//     doctorId: string,
+//     proposedTime: Date,
+//     durationMinutes: number = 15,
+//     appointments: Appointment[],
+//     schedules: { [doctorId: string]: DoctorSchedule }
+// ): string | null => {
+//     const dayOfWeek = proposedTime.toLocaleDateString('en-US', { weekday: 'long' });
+//     const doctorSchedule = schedules[doctorId];
+    
+//     // if (!doctorSchedule || !doctorSchedule[dayOfWeek]) {
+//     //     return "The selected doctor does not work on this day.";
+//     // }
+
+//     const proposedTimeStr = proposedTime.toTimeString().slice(0, 5);
+//     const proposedEndTime = new Date(proposedTime.getTime() + durationMinutes * 60000);
+//     const proposedEndTimeStr = proposedEndTime.toTimeString().slice(0, 5);
+
+//     // 1. Check if the time is within doctor's working slots
+//     const workingSlots = doctorSchedule[dayOfWeek].filter(s => s.type !== 'unavailable');
+//     const isInAnySlot = workingSlots.some(slot => 
+//         proposedTimeStr >= slot.startTime && proposedEndTimeStr <= slot.endTime
+//     );
+
+//     if (!isInAnySlot) {
+//         return "The requested time is outside the doctor's working hours or in an unavailable slot.";
+//     }
+
+//     // 2. Check for overlapping appointments
+//     const overlappingAppt = appointments.find(a => {
+//         if (a.doctorId !== doctorId || a.status === 'cancelled') return false;
+        
+//         const existStart = new Date(a.appointmentTime);
+//         const existEnd = new Date(existStart.getTime() + 15 * 60000); // Assume 15 min duration
+        
+//         return (proposedTime < existEnd && proposedEndTime > existStart);
+//     });
+
+//     if (overlappingAppt) {
+//         return `Conflict: This doctor already has an appointment with ${overlappingAppt.patientName} at this time.`;
+//     }
+
+//     return null;
+// };
+
 export const checkAppointmentConflict = (
     doctorId: string,
     proposedTime: Date,
@@ -133,39 +179,68 @@ export const checkAppointmentConflict = (
     appointments: Appointment[],
     schedules: { [doctorId: string]: DoctorSchedule }
 ): string | null => {
-    const dayOfWeek = proposedTime.toLocaleDateString('en-US', { weekday: 'long' });
+
+    const dayOfWeek = proposedTime.toLocaleDateString('en-US', {
+        weekday: 'long'
+    });
+
     const doctorSchedule = schedules[doctorId];
-    
+
+    // Skip doctor available check
+    // because doctor already selected from duty doctors
+
     if (!doctorSchedule || !doctorSchedule[dayOfWeek]) {
-        return "The selected doctor does not work on this day.";
+        return null;
     }
 
-    const proposedTimeStr = proposedTime.toTimeString().slice(0, 5);
-    const proposedEndTime = new Date(proposedTime.getTime() + durationMinutes * 60000);
-    const proposedEndTimeStr = proposedEndTime.toTimeString().slice(0, 5);
+    const proposedTimeStr = proposedTime
+        .toTimeString()
+        .slice(0, 5);
 
-    // 1. Check if the time is within doctor's working slots
-    const workingSlots = doctorSchedule[dayOfWeek].filter(s => s.type !== 'unavailable');
-    const isInAnySlot = workingSlots.some(slot => 
-        proposedTimeStr >= slot.startTime && proposedEndTimeStr <= slot.endTime
+    const proposedEndTime = new Date(
+        proposedTime.getTime() + durationMinutes * 60000
+    );
+
+    const proposedEndTimeStr = proposedEndTime
+        .toTimeString()
+        .slice(0, 5);
+
+    // Check slot timing only
+    const workingSlots = doctorSchedule[dayOfWeek];
+
+    const isInAnySlot = workingSlots.some(slot =>
+        proposedTimeStr >= slot.startTime &&
+        proposedEndTimeStr <= slot.endTime
     );
 
     if (!isInAnySlot) {
-        return "The requested time is outside the doctor's working hours or in an unavailable slot.";
+        return "Selected time is outside duty slot.";
     }
 
-    // 2. Check for overlapping appointments
+    // Check overlapping appointment
     const overlappingAppt = appointments.find(a => {
-        if (a.doctorId !== doctorId || a.status === 'cancelled') return false;
-        
+
+        if (
+            a.doctorId !== doctorId ||
+            a.status === 'cancelled'
+        ) {
+            return false;
+        }
+
         const existStart = new Date(a.appointmentTime);
-        const existEnd = new Date(existStart.getTime() + 15 * 60000); // Assume 15 min duration
-        
-        return (proposedTime < existEnd && proposedEndTime > existStart);
+
+        const existEnd = new Date(
+            existStart.getTime() + 15 * 60000
+        );
+
+        return (
+            proposedTime < existEnd &&
+            proposedEndTime > existStart
+        );
     });
 
     if (overlappingAppt) {
-        return `Conflict: This doctor already has an appointment with ${overlappingAppt.patientName} at this time.`;
+        return `Doctor already has appointment at this time`;
     }
 
     return null;
@@ -244,7 +319,6 @@ export const generateDoctorReminderMessage = (appointment: Appointment, doctorNa
 
     return message;
 };
-
 
 /**
  * Opens a new browser tab with a pre-filled WhatsApp message.
